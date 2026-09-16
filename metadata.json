@@ -1,0 +1,8 @@
+{
+  "name": "Remix Remix Remix INTERNHUB",
+  "description": "Internship Intelligence \u0026 Career Discovery Platform - High-performance college internship portal with role-based access for students, companies, and administrators.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
