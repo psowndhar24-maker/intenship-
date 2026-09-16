@@ -11,6 +11,7 @@ export interface EnvironmentConfig {
   PORT: number;
   NODE_ENV: string;
   DEBUG: boolean;
+  FRONTEND_URL?: string;
   EXTERNAL_SYNC_ENABLED: boolean;
   EXTERNAL_SYNC_INTERVAL_MINUTES: number;
 }
@@ -66,7 +67,11 @@ function loadAndValidateConfig(): EnvironmentConfig {
   const port = rawPort && !isNaN(Number(rawPort)) ? Number(rawPort) : 3000;
   const debug = process.env.DEBUG === 'true' || process.env.DEBUG === '1';
 
-  // 5. Automatic Synchronization settings
+  // 5. FRONTEND_URL for production CORS
+  const rawFrontendUrl = process.env.FRONTEND_URL?.trim();
+  const frontendUrl = rawFrontendUrl && rawFrontendUrl.length > 0 ? rawFrontendUrl : undefined;
+
+  // 6. Automatic Synchronization settings
   const externalSyncEnabled = process.env.EXTERNAL_SYNC_ENABLED === 'true';
   const rawInterval = process.env.EXTERNAL_SYNC_INTERVAL_MINUTES?.trim();
   const externalSyncIntervalMinutes = rawInterval && !isNaN(Number(rawInterval)) ? Math.max(1, Number(rawInterval)) : 360;
@@ -78,6 +83,7 @@ function loadAndValidateConfig(): EnvironmentConfig {
     PORT: port,
     NODE_ENV: nodeEnv,
     DEBUG: debug,
+    FRONTEND_URL: frontendUrl,
     EXTERNAL_SYNC_ENABLED: externalSyncEnabled,
     EXTERNAL_SYNC_INTERVAL_MINUTES: externalSyncIntervalMinutes
   };

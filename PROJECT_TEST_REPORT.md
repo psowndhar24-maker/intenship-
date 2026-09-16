@@ -103,6 +103,13 @@
 - [x] **PASS** — **Vite Production Build (`vite build`)**: Static assets and bundle output generated in `dist/`.
 - [x] **PASS** — **Backend Bundler (`esbuild`)**: Bundles `server.ts` into a self-contained CommonJS file at `dist/server.cjs`.
 
+### Category 11: Production Deployment & Vercel Connectivity
+- [x] **PASS** — **API Client URL Normalization**: Centralized `buildApiUrl` safely handles relative `/api`, absolute URLs, slashes, and prevents duplicate `/api/api` paths.
+- [x] **PASS** — **No Hardcoded Localhost**: All hardcoded `127.0.0.1:3000` references removed in favor of environment-based configuration (`VITE_API_URL`).
+- [x] **PASS** — **Production-Grade CORS**: Express backend dynamically validates incoming origins against `FRONTEND_URL` (with Vercel domain and preview deployment support) and responds with `204 No Content` to preflight OPTIONS requests.
+- [x] **PASS** — **Safe Network Error Messaging**: Generic `"Sign in failed: Failed to fetch"` replaced with clear `"Unable to connect to the server. Please check the server connection and try again."` while preserving server-sent authentication failure messages.
+- [x] **PASS** — **Vercel SPA Routing**: `vercel.json` rewrite configuration added to route client-side routes to `/index.html` without intercepting `/api/*` endpoints.
+
 ---
 
 ## 3. Evaluator Demonstration Walkthrough

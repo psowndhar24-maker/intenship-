@@ -168,7 +168,11 @@ export const LoginPage: React.FC = () => {
               >
                 <AlertCircle className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
                 <div className="flex-1">
-                  <span className="font-semibold text-rose-300">Sign In Failed: </span>
+                  <span className="font-semibold text-rose-300">
+                    {error.toLowerCase().includes('connect') || error.toLowerCase().includes('server')
+                      ? 'Connection Error: '
+                      : 'Sign In Failed: '}
+                  </span>
                   {error}
                 </div>
               </div>

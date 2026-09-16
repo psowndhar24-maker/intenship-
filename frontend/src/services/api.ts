@@ -1,6 +1,64 @@
 import { storage } from '../utils/storage';
 
-export const API_BASE_URL = import.meta.env?.VITE_API_URL || '/api';
+/**
+ * Returns the sanitized base URL for API requests.
+ * Supports:
+ * - Empty / unset: defaults to '/api' (same-origin relative)
+ * - Explicit relative path: e.g. '/api'
+ * - Absolute production backend URL: e.g. 'https://api.internhub.org' or 'https://api.internhub.org/api'
+ */
+export function getApiBaseUrl(): string {
+  const envUrl = (import.meta.env?.VITE_API_URL || '').trim();
+  if (!envUrl) {
+    return '/api';
+  }
+  // Strip any trailing slashes
+  return envUrl.replace(/\/+$/, '');
+}
+
+/**
+ * Centrally builds safe API request URLs.
+ * Guarantees no:
+ * - /api/api/login duplicate prefixes
+ * - undefined/api/login
+ * - missing /api prefix when pointing to an absolute backend domain
+ * - duplicate slashes
+ */
+export function buildApiUrl(endpoint: string): string {
+  const base = getApiBaseUrl();
+  let cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+
+  // Case 1: Same-origin relative path (e.g. '/api' or '/')
+  if (base.startsWith('/')) {
+    const cleanBase = base === '/' ? '' : base;
+    if (cleanBase && cleanEndpoint.startsWith(cleanBase)) {
+      return cleanEndpoint;
+    }
+    return `${cleanBase}${cleanEndpoint}`;
+  }
+
+  // Case 2: Absolute backend URL (e.g. 'https://my-backend.domain')
+  try {
+    const parsed = new URL(base);
+    let pathname = parsed.pathname.replace(/\/+$/, '');
+
+    // If backend URL does not end with /api, and endpoint does not start with /api, route through /api
+    if (!pathname.endsWith('/api') && !cleanEndpoint.startsWith('/api')) {
+      pathname = `${pathname}/api`;
+    } else if (pathname.endsWith('/api') && cleanEndpoint.startsWith('/api')) {
+      // Avoid duplicate /api/api
+      cleanEndpoint = cleanEndpoint.substring(4);
+    }
+
+    parsed.pathname = (pathname === '/' ? '' : pathname) + cleanEndpoint;
+    return parsed.toString();
+  } catch {
+    // Fallback if URL parsing fails
+    return `${base}${cleanEndpoint}`;
+  }
+}
+
+export const API_BASE_URL = getApiBaseUrl();
 
 export interface RequestOptions extends Omit<RequestInit, 'body'> {
   params?: Record<string, string | number | boolean | undefined | null>;
@@ -11,20 +69,28 @@ export class ApiError extends Error {
   public status: number;
   public code: string;
   public details?: unknown;
+  public isNetworkError: boolean;
 
-  constructor(message: string, status: number, code = 'API_ERROR', details?: unknown) {
+  constructor(
+    message: string,
+    status: number,
+    code = 'API_ERROR',
+    details?: unknown,
+    isNetworkError = false
+  ) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
     this.details = details;
+    this.isNetworkError = isNetworkError;
   }
 }
 
 export async function apiClient<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   const { params, headers = {}, body, ...customConfig } = options;
 
-  let url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  let url = buildApiUrl(endpoint);
 
   if (params) {
     const searchParams = new URLSearchParams();
@@ -111,7 +177,18 @@ export async function apiClient<T>(endpoint: string, options: RequestOptions = {
           errorCode = parsedData.code;
         }
       } else if (typeof parsedData === 'string' && parsedData.trim().length > 0) {
-        errorMessage = parsedData;
+        // If an HTML error page was returned (e.g., from static host 404 or CDN proxy 502)
+        if (parsedData.trim().startsWith('<') || parsedData.toLowerCase().includes('<!doctype')) {
+          if (response.status === 404) {
+            errorMessage = 'API endpoint not found. Please verify the production API server is deployed and reachable.';
+          } else if (response.status === 502 || response.status === 503 || response.status === 504) {
+            errorMessage = 'Backend service is currently unavailable. Please try again in a few moments.';
+          } else {
+            errorMessage = `Server responded with status ${response.status}.`;
+          }
+        } else {
+          errorMessage = parsedData;
+        }
       }
 
       throw new ApiError(errorMessage, response.status, errorCode, errorDetails);
@@ -122,8 +199,21 @@ export async function apiClient<T>(endpoint: string, options: RequestOptions = {
     if (err instanceof ApiError) {
       throw err;
     }
-    const message = err instanceof Error ? err.message : 'Network communication error';
-    throw new ApiError(message, 0, 'NETWORK_ERROR');
+
+    // Determine if the error is a fetch/network transport failure
+    const rawMsg = err instanceof Error ? err.message : 'Network error';
+    const isNetworkOrFetch =
+      rawMsg.toLowerCase().includes('fetch') ||
+      rawMsg.toLowerCase().includes('network') ||
+      rawMsg.toLowerCase().includes('load failed') ||
+      rawMsg.toLowerCase().includes('cors') ||
+      err instanceof TypeError;
+
+    const message = isNetworkOrFetch
+      ? 'Unable to connect to the server. Please check the server connection and try again.'
+      : rawMsg;
+
+    throw new ApiError(message, 0, 'NETWORK_UNAVAILABLE', undefined, true);
   }
 }
 

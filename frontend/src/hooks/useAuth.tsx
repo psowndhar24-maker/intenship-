@@ -63,9 +63,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setIsLoading(false);
       let errorMsg = 'Authentication failed. Please verify credentials.';
       if (err instanceof ApiError) {
-        errorMsg = err.message;
+        if (err.isNetworkError || err.code === 'NETWORK_UNAVAILABLE' || err.status === 0) {
+          errorMsg = 'Unable to connect to the server. Please check the server connection and try again.';
+        } else {
+          errorMsg = err.message;
+        }
       } else if (err instanceof Error) {
-        errorMsg = err.message;
+        const lower = err.message.toLowerCase();
+        if (lower.includes('fetch') || lower.includes('network') || lower.includes('failed to fetch')) {
+          errorMsg = 'Unable to connect to the server. Please check the server connection and try again.';
+        } else {
+          errorMsg = err.message;
+        }
       }
       setError(errorMsg);
       throw err;

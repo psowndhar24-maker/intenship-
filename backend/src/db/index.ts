@@ -2,6 +2,7 @@ import { PGlite } from '@electric-sql/pglite';
 import pg from 'pg';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import crypto from 'crypto';
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
@@ -289,7 +290,10 @@ export async function getDbClient(): Promise<{ pglite?: PGlite; pool?: pg.Pool }
     }
 
     // Fallback to local embedded PGlite
-    const dbDir = path.resolve(process.cwd(), 'data/internhub_pglite');
+    let dbDir = path.resolve(process.cwd(), 'data/internhub_pglite');
+    if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+      dbDir = path.join(os.tmpdir(), 'internhub_pglite');
+    }
     
     // Auto-recovery: Check for stale locks or incomplete files
     try {
